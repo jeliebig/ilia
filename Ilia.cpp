@@ -41,7 +41,12 @@ static int IniSectionHandler(void *user, const char *section, void **section_con
 		if(index != buf.size() - i - 1) {
 			return 0;
 		}
-		if(env_get_kernel_version() >= KERNEL_VERSION_500) {
+		target_version_t target_version;
+		if (env_get_target_version(&target_version) != RESULT_OK) {
+			fprintf(stderr, "Failed to get target version.\n");
+			return 0;
+		}
+		if(target_version >= TARGET_VERSION_5_0_0) {
 			ResultCode::AssertOk(
 				ilia.pm_dmnt.SendSyncRequest<2>(
 					ipc::InRaw<uint64_t>(tid),
@@ -64,7 +69,7 @@ static int IniSectionHandler(void *user, const char *section, void **section_con
 	}
 
 	fprintf(stderr, "attaching to process 0x%lx\n", pid);
-   
+
 	auto p = ilia.processes.find(pid);
 	if(p == ilia.processes.end()) {
 		p = ilia.processes.emplace(
@@ -81,7 +86,7 @@ static int IniValueHandler(void *user, void *section_context, const char *name, 
 	if(section_context == nullptr) {
 		return 0;
 	}
-	
+
 	ilia::Ilia &ilia = *(ilia::Ilia*) user;
 	ilia::Process &proc = *(ilia::Process*) section_context;
 
@@ -92,7 +97,7 @@ static int IniValueHandler(void *user, void *section_context, const char *name, 
 		fprintf(stderr, "attaching to manual '%s' = 0x%lx (\"%s\")\n", name, offset, value);
 		ilia.sniffers.emplace_back(std::move(proc.Sniff(name, offset)));
 	}
-	
+
 	return 1;
 }
 
@@ -119,7 +124,7 @@ int main(int argc, char *argv[]) {
 		strftime(fname, sizeof(fname)-1, "/sd/ilia_%F_%H-%M-%S.pcapng", gmtime(&time));
 		fprintf(stderr, "opening '%s'...\n", fname);
 		FILE *log = fopen(fname, "wb");
-		
+
 		ilia::Ilia ilia(log);
 
 		FILE *f = fopen("/sd/ilia.ini", "r");
@@ -133,12 +138,12 @@ int main(int argc, char *argv[]) {
 			fprintf(stderr, "ini error on line %d\n", error);
 			return 1;
 		}
-		
+
 		while(!ilia.destroy_flag) {
 			trn::ResultCode::AssertOk(ilia.event_waiter.Wait(3000000000));
 		}
 		fprintf(stderr, "ilia terminating\n");
-   
+
 		return 0;
 	} catch(trn::ResultError &e) {
 		fprintf(stderr, "caught ResultError: 0x%x\n", e.code.code);
@@ -177,7 +182,7 @@ Ilia::Ilia(FILE *pcap) :
 	sm.GetService("pm:dmnt"));
 	trn::ipc::client::Object ldr_dmnt = trn::ResultCode::AssertOk(
 	sm.GetService("ldr:dmnt"));
-   
+
 	for(uint32_t i = 0; i < num_pids; i++) {
 	handle_t proc_handle;
 	auto r = pm_dmnt.SendSyncRequest<65000>( // Atmosphere-GetProcessHandle
@@ -187,7 +192,7 @@ Ilia::Ilia(FILE *pcap) :
 	fprintf(stderr, "failed to get process handle for %ld: 0x%x\n", pids[i], r.error().code);
 	continue;
 	}
-   
+
 	processes.try_emplace(pids[i], this, ldr_dmnt, std::move(trn::KProcess(proc_handle)), pids[i]);
 	}
 	}
@@ -207,7 +212,7 @@ Ilia::Ilia(FILE *pcap) :
 	}
 	}
 	}
-   
+
 	return trn::ResultCode(RESULT_OK);
 	}
 */
